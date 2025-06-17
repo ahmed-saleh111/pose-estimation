@@ -6,8 +6,7 @@ import cv2
 from ultralytics import YOLO
 
 # Load YOLO pose model
-model = YOLO("models/yolo11n-pose.pt")
-faces_model = YOLO("models/yolov11n-face.pt")
+model = YOLO("models/yolo11s-pose.pt")
 def process_pose_frame(frame):
     # 1) Run pose estimation
     results = model(frame, conf=0.75)
@@ -81,5 +80,5 @@ def main(video_path):
     cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    video_path = r"videos\video4.mp4" 
+    video_path = "videos/video4.mp4" 
     main(video_path)

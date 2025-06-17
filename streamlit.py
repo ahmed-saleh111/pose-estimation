@@ -1,21 +1,20 @@
 import cv2
 import streamlit as st
-from ultralytics import YOLO
-from pose import process_pose_frame
 import tempfile
 from datetime import datetime
+import os
+from pose import process_pose_frame
 
-st.title(":blue[School]")
+st.title(":blue[School Video Analysis]")
 
 st.markdown(
     ":orange-badge[⚠️ Upload video in mp4 format only]"
 )
 
-uploaded_file = st.file_uploader("Upload a video", type=["mp4", "avi"])  # all video paths
+uploaded_file = st.file_uploader("Upload a video", type=["mp4", "avi"])
 
 if uploaded_file is not None:
-    # st.badge("Success", icon=":material/check:", color="green")
-    tfile = tempfile.NamedTemporaryFile(delete=False)
+    tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
     tfile.write(uploaded_file.read())
 
     st.divider()
@@ -24,35 +23,42 @@ if uploaded_file is not None:
         vf = cv2.VideoCapture(tfile.name)
 
         if not vf.isOpened():
-            st.markdown(
-                ":orange-badge[⚠️ False]"
-            )
-        
+            st.markdown(":orange-badge[⚠️ Failed to open video]")
+            tfile.close()
+            os.unlink(tfile.name)
+        else:
+            frame_width = int(vf.get(cv2.CAP_PROP_FRAME_WIDTH))
+            frame_height = int(vf.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            fps = vf.get(cv2.CAP_PROP_FPS)
 
-        frame_width = int(vf.get(cv2.CAP_PROP_FRAME_WIDTH))
-        frame_height = int(vf.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        fps = vf.get(cv2.CAP_PROP_FPS)
+            # Output file with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_path = f"output_{timestamp}.mp4"
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
 
-        # Output file with timestamp (unique per execution)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_path = f"output_{timestamp}.mp4"
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
+            stframe = st.empty()
+            frame_idx = 0
 
-        stframe = st.empty()
+            while True:
+                ret, frame = vf.read()
+                if not ret:
+                    break
+                frame_idx += 1
 
-        while True:
-            ret, frame = vf.read()
-            if not ret:
-                break
-            processed_frame = process_pose_frame(frame)
-            # Immediately save each frame
-            out.write(processed_frame)
+                # Process frame with all models
+                processed_frame = frame.copy()
+                processed_frame = process_pose_frame(processed_frame)  # Pose estimation
 
-            frame_rgb = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB)
-            stframe.image(frame_rgb, channels="RGB")
-        vf.release()
+                # Save and display frame
+                out.write(processed_frame)
+                frame_rgb = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB)
+                stframe.image(frame_rgb, channels="RGB")
 
+            vf.release()
+            out.release()
+            tfile.close()
+            os.unlink(tfile.name)
 
-# st.video(uploaded_file, autoplay=True)
-#streamlit run streamlit.py
+            # Display the processed video
+            st.video(output_path)
